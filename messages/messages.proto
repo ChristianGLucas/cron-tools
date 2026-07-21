@@ -1,0 +1,214 @@
+// This file defines the data contracts (messages) for your Axiom package.
+// Every node's --input and --output refers to a message defined here.
+//
+// Run `axiom create message <Name>` to scaffold a new message below.
+// Run `axiom generate` to compile these definitions into language bindings in gen/.
+//
+// DOCUMENTATION
+//   Comments written directly above a message or field declaration are extracted
+//   automatically at publish time and shown in the Axiom registry as documentation.
+//   Write your descriptions there — no separate doc files needed.
+//
+//   Leading comment  (no blank line before the declaration) → registry description ✓
+//   Detached comment (blank line before the declaration)    → ignored by registry  ✗
+//
+// This file is yours to edit. Axiom only appends new message blocks — it never
+// overwrites or removes content you have written.
+
+syntax = "proto3";
+
+package christiangeorgelucas.cron_tools;
+
+option java_package = "gen";
+option java_outer_classname = "Messages";
+
+// The crontab dialect a cron string is written in — which fields it has, how
+// they're numbered, and which special characters (?, L, W, #) it supports.
+// Backed by cron-utils' predefined CronDefinitionBuilder instances.
+enum CronDialect {
+  // 5 fields: minute hour day-of-month month day-of-week. No seconds, no
+  // question mark. The classic /etc/crontab syntax (Vixie cron).
+  UNIX = 0;
+  // 6 or 7 fields: seconds minute hour day-of-month month day-of-week [year].
+  // 1=Sunday..7=Saturday for day-of-week. Supports ?, L, W, # and requires
+  // exactly one of day-of-month/day-of-week to be "?" when the other is a
+  // concrete value. The Quartz Job Scheduler syntax.
+  QUARTZ = 1;
+  // 6 fields: seconds minute hour day-of-month month day-of-week. Spring
+  // Framework 5.3+ syntax (org.springframework.scheduling.support.CronExpression) —
+  // like Quartz but 0=Sunday..6=Saturday and no L/W/#/year field.
+  SPRING53 = 2;
+  // 5 fields like UNIX, but day-of-week is 0=Sunday..7=Sunday (7 also valid
+  // for Sunday) and it supports "|" alternation between values. The cron4j
+  // library's syntax.
+  CRON4J = 3;
+}
+
+// A structured, deterministic failure. Every output message carries one; it
+// is unset (empty code) on success. Nodes never throw for bad input — they
+// return this instead.
+message CronError {
+  // Stable machine-readable code: INVALID_CRON (the expression does not parse
+  // for the given dialect), INVALID_TIMESTAMP (a time field is not valid
+  // RFC 3339), INVALID_ARGUMENT (a non-time argument is out of bounds, e.g.
+  // an unsupported dialect pair or a count outside its allowed range), or
+  // INTERNAL (the package itself faulted; the input may be fine).
+  string code = 1;
+  // Human-readable detail naming exactly what was rejected and why.
+  string message = 2;
+}
+
+// Ask whether a cron string is syntactically valid for a dialect.
+message ValidateCronInput {
+  // The cron expression to validate, e.g. "0 9 * * 1-5" for UNIX.
+  string cron = 1;
+  // Which dialect to validate against. Defaults to UNIX (the proto3 zero value).
+  CronDialect dialect = 2;
+}
+
+// The outcome of validating a cron expression.
+message CronValidationResult {
+  // True when `cron` parses and validates cleanly for the given dialect.
+  bool valid = 1;
+  // The cron re-printed in its canonical field order/spacing, e.g. leading/
+  // trailing whitespace and repeated spaces collapsed. Empty when invalid.
+  string normalized = 2;
+  // Set when invalid, with a human-readable reason (INVALID_CRON). Unset
+  // when valid.
+  CronError error = 3;
+}
+
+// Ask for a plain-English description of a cron expression.
+message DescribeCronInput {
+  // The cron expression to describe.
+  string cron = 1;
+  // Which dialect `cron` is written in. Defaults to UNIX.
+  CronDialect dialect = 2;
+  // BCP-47-ish language tag for the description: one of "en", "de", "el",
+  // "es", "fr", "id", "it", "ja", "ko", "nl", "pl", "pt", "ro", "ru", "sw",
+  // "tr", "zh" (cron-utils' bundled descriptor locales as of 9.2.1;
+  // unrecognized tags fall back to "en"). Empty defaults to "en".
+  string locale = 3;
+}
+
+// A human-readable description of a cron expression.
+message CronDescriptionResult {
+  // e.g. "at 09:00 AM, Monday through Friday" for "0 9 * * 1-5".
+  string description = 1;
+  // Set when `cron` fails to parse (INVALID_CRON). Unset on success.
+  CronError error = 2;
+}
+
+// One field of a parsed cron expression.
+message CronFieldInfo {
+  // The field's name: "second", "minute", "hour", "day_of_month", "month",
+  // "day_of_week", or "year". Only fields the dialect actually has are present.
+  string name = 1;
+  // The field's sub-expression exactly as cron-utils re-prints it, e.g.
+  // "*/15", "1-5", "MON,WED,FRI" normalized to "1,3,5".
+  string raw_expression = 2;
+  // cron-utils' classification of the expression's shape: "always" (*),
+  // "every" (*/n or a/n step), "between" (a-b range), "on" (a single value,
+  // possibly with L/W/# modifiers), "and" (a comma-separated list),
+  // or "question_mark" (?).
+  string kind = 3;
+}
+
+// Ask for the per-field breakdown of a cron expression.
+message FieldBreakdownInput {
+  // The cron expression to break down.
+  string cron = 1;
+  // Which dialect `cron` is written in. Defaults to UNIX.
+  CronDialect dialect = 2;
+}
+
+// The per-field breakdown of a cron expression, in field order (seconds
+// first when present, year last when present).
+message CronFieldBreakdownResult {
+  repeated CronFieldInfo fields = 1;
+  // Set when `cron` fails to parse (INVALID_CRON). Unset on success; `fields`
+  // is empty on error.
+  CronError error = 2;
+}
+
+// Ask for run times relative to a caller-supplied reference instant. Shared
+// by NextRunTimes (search forward) and PreviousRunTimes (search backward) —
+// same shape, opposite direction.
+message CronRunTimesInput {
+  // The cron expression to evaluate.
+  string cron = 1;
+  // Which dialect `cron` is written in. Defaults to UNIX.
+  CronDialect dialect = 2;
+  // RFC 3339 timestamp (e.g. "2026-07-20T09:00:00Z") the search starts from.
+  // ALWAYS caller-supplied — this package never reads the wall clock, so the
+  // same input always produces the same output. Required.
+  string from_time = 3;
+  // How many run times to return. 0 defaults to 1. Values above 500 are
+  // rejected with INVALID_ARGUMENT rather than silently clamped, so a caller
+  // never gets a silently-truncated answer without knowing it.
+  int32 count = 4;
+}
+
+// A list of run times, in the direction the request asked for (earliest
+// first for NextRunTimes, most-recent-first for PreviousRunTimes).
+message CronRunTimesResult {
+  // RFC 3339 timestamps, same zone as `from_time`.
+  repeated string run_times = 1;
+  // True when the search gave up before producing `count` results — either
+  // the requested `count` genuinely cannot be reached within cron-utils'
+  // own 100-year/100000-iteration search bound (e.g. "0 0 31 2 *", day 31 of
+  // February, which never occurs), or the search otherwise exhausted that
+  // bound. `run_times` still holds whatever was found before giving up.
+  bool truncated = 2;
+  // Set when `cron` fails to parse (INVALID_CRON), `from_time` is not valid
+  // RFC 3339 (INVALID_TIMESTAMP), or `count` is out of range (INVALID_ARGUMENT).
+  CronError error = 3;
+}
+
+// Ask whether a specific instant matches a cron expression (the "is this
+// due to run right now" check).
+message IsDueInput {
+  // The cron expression to test against.
+  string cron = 1;
+  // Which dialect `cron` is written in. Defaults to UNIX.
+  CronDialect dialect = 2;
+  // RFC 3339 timestamp to test, e.g. "2026-07-20T09:00:00Z". ALWAYS
+  // caller-supplied — never the wall clock. Required.
+  string check_time = 3;
+}
+
+// The outcome of an is-due check.
+message CronIsDueResult {
+  // True when `check_time` exactly matches an occurrence of `cron` (to the
+  // precision the dialect supports — second-level for QUARTZ/SPRING53,
+  // minute-level for UNIX/CRON4J; any sub-precision component of
+  // `check_time`, e.g. seconds under a UNIX cron, is ignored the same way
+  // cron-utils ignores it).
+  bool is_due = 1;
+  // Set when `cron` fails to parse (INVALID_CRON) or `check_time` is not
+  // valid RFC 3339 (INVALID_TIMESTAMP).
+  CronError error = 2;
+}
+
+// Ask to translate a cron expression from one dialect's field layout into
+// another's (e.g. UNIX's 5 fields into Quartz's 6-7, remapping day-of-week
+// numbering and inserting the "?" Quartz/Spring53 require).
+message MigrateCronInput {
+  // The cron expression to migrate, written in `from_dialect`.
+  string cron = 1;
+  // The dialect `cron` is currently written in.
+  CronDialect from_dialect = 2;
+  // The dialect to translate it into.
+  CronDialect to_dialect = 3;
+}
+
+// A cron expression translated into another dialect.
+message CronMigrateResult {
+  // `cron` re-expressed in `to_dialect`'s field layout. Empty on error.
+  string migrated_cron = 1;
+  // Set when `cron` fails to parse in `from_dialect` (INVALID_CRON), or the
+  // migration produces an expression `to_dialect` itself rejects — e.g. a
+  // day-of-month value that has no equivalent — (INVALID_CRON on the
+  // migrated result).
+  CronError error = 2;
+}
