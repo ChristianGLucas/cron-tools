@@ -196,12 +196,8 @@ final class CronSupport {
         return mapper.map(cron);
     }
 
-    // Default count when the caller leaves `count` at its proto3 zero value,
-    // and the ceiling above which we reject rather than silently truncate —
-    // bounds the cost of the loop below regardless of how cron-utils' own
-    // internal search behaves.
+    // Default count when the caller leaves `count` at its proto3 zero value.
     static final int DEFAULT_COUNT = 1;
-    static final int MAX_COUNT = 500;
 
     /**
      * Shared implementation for NextRunTimes and PreviousRunTimes: parse,
@@ -217,10 +213,10 @@ final class CronSupport {
     static CronRunTimesResult computeRunTimes(CronRunTimesInput input, boolean forward) {
         int requested = input.getCount();
         int count = requested == 0 ? DEFAULT_COUNT : requested;
-        if (count < 0 || count > MAX_COUNT) {
+        if (count < 0) {
             return CronRunTimesResult.newBuilder()
                     .setError(error("INVALID_ARGUMENT",
-                            "count must be between 1 and " + MAX_COUNT + " (0 defaults to 1); got " + requested))
+                            "count must not be negative (0 defaults to 1); got " + requested))
                     .build();
         }
 

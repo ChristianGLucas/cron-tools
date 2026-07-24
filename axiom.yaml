@@ -1,5 +1,5 @@
 name: christiangeorgelucas/cron-tools
-version: 0.1.0
+version: 0.1.1
 language: java
 description: Composable Axiom crontab-scheduling nodes (validate, next/previous run times, is-due, plain-English description, per-field breakdown, dialect migration) over UNIX/QUARTZ/SPRING53/CRON4J cron syntax, wrapping the Apache-2.0-licensed jmrozanec/cron-utils library. Every reference instant is a caller-supplied RFC 3339 timestamp, never the wall clock, so every node is stateless and deterministic. Distinct from RFC 5545 iCalendar recurrence rules (see recurrence-tools) — this package speaks crontab syntax.
 author: Christian George Lucas

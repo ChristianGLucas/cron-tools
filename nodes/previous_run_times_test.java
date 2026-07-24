@@ -81,13 +81,13 @@ public class PreviousRunTimesTest {
     }
 
     @Test
-    public void testCountAboveCeilingIsRejected() {
+    public void testNegativeCountIsRejected() {
         AxiomContext ax = new TestContext();
         CronRunTimesInput input = CronRunTimesInput.newBuilder()
                 .setCron("* * * * *")
                 .setDialect(CronDialect.UNIX)
                 .setFromTime("2026-07-20T00:00:00Z")
-                .setCount(1000)
+                .setCount(-1)
                 .build();
         CronRunTimesResult result = PreviousRunTimes.previousRunTimes(ax, input);
         assertEquals("INVALID_ARGUMENT", result.getError().getCode());

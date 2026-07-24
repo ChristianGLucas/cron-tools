@@ -143,9 +143,8 @@ message CronRunTimesInput {
   // ALWAYS caller-supplied — this package never reads the wall clock, so the
   // same input always produces the same output. Required.
   string from_time = 3;
-  // How many run times to return. 0 defaults to 1. Values above 500 are
-  // rejected with INVALID_ARGUMENT rather than silently clamped, so a caller
-  // never gets a silently-truncated answer without knowing it.
+  // How many run times to return. 0 defaults to 1. Negative values are
+  // rejected with INVALID_ARGUMENT.
   int32 count = 4;
 }
 
